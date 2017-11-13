@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Md.cs" />
+    <Compile Include="MdTests.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>

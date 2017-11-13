@@ -1,13 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.PerformanceData;
-using System.Linq.Expressions;
-using System.Security;
-using System.Security.Cryptography;
 using System.Text;
 using FluentAssertions;
 using NUnit.Framework;
-using NUnit.Framework.Constraints;
 
 namespace Markdown
 {
@@ -16,116 +10,85 @@ namespace Markdown
 		public string RenderToHtml(string markdown)
 		{
 			var result = new StringBuilder();
-			var isOpened_ = false;
-			var isOpened__ = false;
+			var isOpenedUnderscore = false;
+			var isOpenedDoubleUnderscore = false;
 			for (int i = 0; i < markdown.Length; i++)
 			{
-				bool is__ = i + 1 < markdown.Length && markdown[i] == '_' && markdown[i + 1] == '_' && __isCorrect(markdown, i);
-				bool is_ = markdown[i] == '_' && _isCorrect(markdown, i);
-				// case if both underscopes are opened => second is always _
-				if (is_ && is__ && isOpened_ && isOpened__)
-					is__ = false;
-				if (is__)
+				bool isDoubleUnderscore = IsCorrectDoubleUnderscore(markdown, i);
+				bool isUnderscore = IsCorrectUnderScore(markdown, i);
+
+				if (IsCorrectTripleUnderscore(markdown, i))
+					isDoubleUnderscore = !isOpenedUnderscore;
+
+				if (isDoubleUnderscore)
 				{
-					if (!isOpened_)
+					if (!isOpenedUnderscore)
 					{
-						if (!isOpened__)
-							result.Append("<strong>");
-						else
-							result.Append("</strong>");
-						isOpened__ = !isOpened__;
+						result.Append(!isOpenedDoubleUnderscore ? "<strong>" : "</strong>");
+						isOpenedDoubleUnderscore = !isOpenedDoubleUnderscore;
 					}
 					i++;
 				}
-				else if (is_)
+				else if (isUnderscore)
 				{
-					if (!isOpened_)
-						result.Append("<em>");
-					else
-						result.Append("</em>");
-					isOpened_ = !isOpened_;
+					result.Append(!isOpenedUnderscore ? "<em>" : "</em>");
+					isOpenedUnderscore = !isOpenedUnderscore;
 				}
 				else
 				{
-					if (markdown[i] == '\\' && i + 1 < markdown.Length && markdown[i + 1] == '_')
+					if (IsEscape(markdown, i))
 						continue;
 					result.Append(markdown[i]);
 				}
 			}
-			return result.ToString();
+			
+			return UndoLastTagsIfNotClosed(result.ToString(), isOpenedUnderscore, isOpenedDoubleUnderscore);
 		}
 
-		private bool _isCorrect(string text, int index)
+		private static bool IsEscape(string text, int index)
 		{
+			return text[index] == '\\' && index + 1 < text.Length && text[index + 1] == '_';
+		}
+
+		private static bool IsCorrectUnderScoreCommonRules(string text, int index, int secondIndex)
+		{
+			if (text[index] != '_') return false;
 			if (index - 1 >= 0 && text[index - 1] == '\\') return false;
-			if (index + 1 < text.Length && '0' <= text[index + 1] && text[index + 1] <= '9') return false;
-			if (index + 1 < text.Length && text[index + 1] == ' ') return false;
+			if (secondIndex < text.Length && Char.IsDigit(text[secondIndex])) return false;
+			if (secondIndex < text.Length && text[secondIndex] == ' ') return false;
 			if (index - 1 >= 0 && text[index - 1] == ' ') return false;
 			return true;
 		}
 
-		private bool __isCorrect(string text, int index)
+		private static bool IsCorrectUnderScore(string text, int index)
 		{
-			// index of first 
-			if (index - 1 >= 0 && text[index - 1] == '\\') return false; // case '\__' == '_' 
-			if (index + 2 < text.Length && '0' <= text[index + 2] && text[index + 2] <= '9') return false;
-			if (index + 2 < text.Length && text[index + 2] == ' ') return false;
-			if (index - 1 >= 0 && text[index - 1] == ' ') return false;
-			return true;
-		}
-	}
-
-	[TestFixture]
-	public class Md_ShouldRender
-	{
-		[TestCase("_Blabla_", ExpectedResult = "<em>Blabla</em>", TestName = "SimpleEmTag_CorrecHTMLString")]
-		[TestCase("__Blabla__", ExpectedResult = "<strong>Blabla</strong>", TestName = "SimpleStrongTag_CorrecHTMLString")]
-		[TestCase("__bla_BLA_bla__", ExpectedResult = "<strong>bla<em>BLA</em>bla</strong>", TestName = "EmInStrongTags")]
-		[TestCase("____", ExpectedResult = "<strong></strong>", TestName = "MarkdownWithFourUnderscopes_TwoStrongTags")]
-		[TestCase("___bla___", ExpectedResult = "<strong><em>bla</em></strong>", TestName = "EmTagInStrongTagWithoutGap_")]
-		public string GivenMarkdownWithCorrectTags(string markdown)
-		{
-			return new Md().RenderToHtml(markdown);
+			return IsCorrectUnderScoreCommonRules(text, index, index + 1);
 		}
 
-		[TestCase("\\_hello_world_", ExpectedResult = "_hello<em>world</em>", TestName = "ShieldedEmTag_NotTag")]
-		[TestCase("\\_\\_hello__world__", ExpectedResult = "__hello<strong>world</strong>",
-			TestName = "ShieldedStrongTag_NotTag")]
-		[TestCase("\\__hello_world", ExpectedResult = "_<em>hello</em>world", TestName = "ShieldedStrong_GetEmTag1")]
-		[TestCase("_\\_hello_world", ExpectedResult = "<em>_hello</em>world", TestName = "ShieldedStrong_GetEmTag2")]
-		[TestCase("\\hello__world__\\", ExpectedResult = "\\hello<strong>world</strong>\\",
-			TestName = "SlashWithoutShielding_GetSlash")]
-		public string GivenMarkdownWithShielding(string markdown)
+		private static bool IsCorrectDoubleUnderscore(string text, int index)
 		{
-			return new Md().RenderToHtml(markdown);
+			return index + 1 < text.Length && text[index + 1] == '_' && IsCorrectUnderScoreCommonRules(text, index, index + 2);
 		}
 
-		[TestCase("pretty_1Test_case_", ExpectedResult = "pretty_1Test<em>case</em>",
-			TestName = "OneUnderscopeWithDigit_NotTag")]
-		[TestCase("pretty__2Test_case", ExpectedResult = "pretty<em>_2Test</em>case",
-			TestName = "TwoUnderscopesWithDigit_isEmTag")]
-		[TestCase("pretty_2_Test_case", ExpectedResult = "pretty_2<em>Test</em>case",
-			TestName = "TwoUnderscopesWithDigit(Between)_isEmTag")]
-		public string GivenMarkdownWithDigits(string markdown)
+		private static bool IsCorrectTripleUnderscore(string text, int index)
 		{
-			return new Md().RenderToHtml(markdown);
+			return index + 2 < text.Length && text[index + 1] == '_' && text[index + 2] == '_' 
+				&& IsCorrectUnderScoreCommonRules(text, index, index + 3);
 		}
 
-		[TestCase("_ uni__verse__", ExpectedResult = "_ uni<strong>verse</strong>",
-			TestName = "SpaceAfterOpeningEm_isUnderscope")]
-		[TestCase("_uni _verse_!", ExpectedResult = "<em>uni _verse</em>!", TestName = "SpaceBeforeClosingEm_isUnderscope")]
-		[TestCase("__ universe_", ExpectedResult = "<em>_ universe</em>",
-			TestName = "SpaceAfterOpeningStrong_isOpeningAndClosingEmTags")]
-		[TestCase("_universe __", ExpectedResult = "<em>universe _</em>", TestName = "SpaceBeforeClosingStrong_isEmTag")]
-		public string GivenMarkdownWithSpaces(string markdown)
+		private static string UndoLastTagsIfNotClosed(string str, bool isOpenedUnderscore, bool isOpenedDoubleUnderscore)
 		{
-			return new Md().RenderToHtml(markdown);
-		}
-
-		[Test]
-		public void MarkdownWithDoubleSelectionInsideSingle_GetOnlyEmTags()
-		{
-			new Md().RenderToHtml("_go__out__please_").Should().Be("<em>gooutplease</em>");
+			if (isOpenedUnderscore)
+			{
+				int index = str.LastIndexOf("<em>");
+				str = str.Remove(index, 4).Insert(index, "_");
+			}
+			if (isOpenedDoubleUnderscore)
+			{
+				int index = str.LastIndexOf("<strong>");
+				str = str.Remove(index, 8).Insert(index, "__");
+			}
+			return str;
 		}
 	}
 }
