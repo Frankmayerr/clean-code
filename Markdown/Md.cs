@@ -15,7 +15,7 @@ namespace Markdown
 			for (int i = 0; i < markdown.Length; i++)
 			{
 				bool isDoubleUnderscore = IsCorrectDoubleUnderscore(markdown, i);
-				bool isUnderscore = IsCorrectUnderScore(markdown, i);
+				bool isUnderscore = IsCorrectUnderscore(markdown, i);
 
 				if (IsCorrectTripleUnderscore(markdown, i))
 					isDoubleUnderscore = !isOpenedUnderscore;
@@ -24,14 +24,14 @@ namespace Markdown
 				{
 					if (!isOpenedUnderscore)
 					{
-						result.Append(!isOpenedDoubleUnderscore ? "<strong>" : "</strong>");
+						result.Append(GetHtmlTagsInsteadMarkdownUnderscopes("__", !isOpenedDoubleUnderscore));
 						isOpenedDoubleUnderscore = !isOpenedDoubleUnderscore;
 					}
 					i++;
 				}
 				else if (isUnderscore)
 				{
-					result.Append(!isOpenedUnderscore ? "<em>" : "</em>");
+					result.Append(GetHtmlTagsInsteadMarkdownUnderscopes("_", !isOpenedUnderscore));
 					isOpenedUnderscore = !isOpenedUnderscore;
 				}
 				else
@@ -41,7 +41,7 @@ namespace Markdown
 					result.Append(markdown[i]);
 				}
 			}
-			
+
 			return UndoLastTagsIfNotClosed(result.ToString(), isOpenedUnderscore, isOpenedDoubleUnderscore);
 		}
 
@@ -60,7 +60,7 @@ namespace Markdown
 			return true;
 		}
 
-		private static bool IsCorrectUnderScore(string text, int index)
+		private static bool IsCorrectUnderscore(string text, int index)
 		{
 			return IsCorrectUnderScoreCommonRules(text, index, index + 1);
 		}
@@ -72,8 +72,8 @@ namespace Markdown
 
 		private static bool IsCorrectTripleUnderscore(string text, int index)
 		{
-			return index + 2 < text.Length && text[index + 1] == '_' && text[index + 2] == '_' 
-				&& IsCorrectUnderScoreCommonRules(text, index, index + 3);
+			return index + 2 < text.Length && text[index + 1] == '_' && text[index + 2] == '_'
+			       && IsCorrectUnderScoreCommonRules(text, index, index + 3);
 		}
 
 		private static string UndoLastTagsIfNotClosed(string str, bool isOpenedUnderscore, bool isOpenedDoubleUnderscore)
@@ -89,6 +89,18 @@ namespace Markdown
 				str = str.Remove(index, 8).Insert(index, "__");
 			}
 			return str;
+		}
+
+		private static string GetHtmlTagsInsteadMarkdownUnderscopes(string markdown, bool isOpening)
+		{
+			switch (markdown)
+			{
+				case "_":
+					return isOpening ? "<em>" : "</em>";
+				case "__":
+					return isOpening ? "<strong>" : "</strong>";
+			}
+			return "";
 		}
 	}
 }
